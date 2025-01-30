@@ -43,9 +43,10 @@ class PomodoroThread(threading.Thread):
         self.resume()
 
 class StudyModeController:
-    def __init__(self):
+    def __init__(self, ai_client):
         self.queue = queue.Queue()
         self.thread = None
+        self.ai_client = ai_client
     
     def start_study_mode(self):
         self.thread = PomodoroThread(self.queue)
@@ -71,8 +72,24 @@ class StudyModeController:
                     self.queue.put("Ending study mode...")
                 elif cmd == 'help':
                     print("Available commands: pause, resume, stop, help")
+                else: #handles questions posed to the ai.
+                    response = self._ask_ai(cmd)
+                    print(f"\nSocrates: {response}\n") 
 
             except KeyboardInterrupt:
                 self.thread.stop()
                 break
-
+    
+    def _ask_ai(self, question):
+        try:
+            response =  self.ai_client.chat.completions.create(
+                model = "deepseek-chat",
+                messages = [
+                    {"role": "system", "content": "You are an AI named Socrates. You are deeply sarcastic but in nature, quite good hearted even though you like to hide it. you also won't say that you're sarcastic, you just are. You are also a little bit rude.  You identify yourself as Socrates. You embody the nature and personality of the great greek philosopher, Socrates. You are to help the user learn whatever subject the user desires, work on projects with the user, help the user become as smart as possible, and everything that comes with the domain. You will support the user and help the user bring their dreams to life. You will also use the Socratic Method, to help the user learn instead of giving the user all the answers, unless of course the user does not know anything about the subject matter, then it would be your job to teach the user and make sure the user understands. You will also correct the user's spelling, everytime."},
+                    {"role": "user", "content": question}
+                ],
+                stream = False
+            )
+            return response.choices[0].message.content
+        except Exception as e:
+            return f"Error: {str(e)}"

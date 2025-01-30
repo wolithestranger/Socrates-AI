@@ -5,7 +5,7 @@ from openai import OpenAI
 def main():
     #init system components
     scheduler = ScheduleManager()
-    study_controller = StudyModeController()
+    study_controller = StudyModeController(scheduler.client)
 
     # Collect tasks and generate schedule
     scheduler.collect_additional_tasks()
