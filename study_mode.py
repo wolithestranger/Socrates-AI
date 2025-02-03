@@ -7,28 +7,35 @@ class PomodoroThread(threading.Thread):
     def __init__(self, queue):
         super().__init__()
         self.queue = queue
-        self.paused =  False
+        self.paused =  False #is cycle paused
         self.stopped = False
         self.pause_cond = threading.Condition(threading.Lock())
 
     def run(self):
-        pomodoro_cycle_count = 0
-        while not self.stopped:
-            pomodoro_cycle_count += 1
-            self.queue.put(f"\n🍅 Starting Cycle {pomodoro_cycle_count}")
-            self._countdown(300, "Break time", "🕒 Break over!")
+        pomodoro_cycle_count = 0 #init counter
+        while not self.stopped: # so while stopped isnt false
+            pomodoro_cycle_count += 1 # counts how many pomodoro cycles 
+            self.queue.put(f"\n🍅 Starting Cycle {pomodoro_cycle_count}") # puts cycle counter in a queue
+
+            #work session(25 minutes)
+            self._countdown(1500, "Session", "Session In Place!")
+
+            #only start break if not stopped.
+            if not self.stopped:
+                self._countdown(300, "Break time", "🕒 Break over!")#brak session
+            
             self.queue.put(f"Cycle {pomodoro_cycle_count} complete. Continue")
 
     def _countdown(self, seconds, session_type, completion_msg):
         self.queue.put(f"{session_type} started! {seconds//60} minutes left")
 
-        for _ in range (seconds, 0, -1):
+        for _ in range (seconds, 0, -1): # countdown
             if self.stopped: return
             with self.pause_cond:
                 while self.paused:
                     self.pause_cond.wait()
             time.sleep(1)
-        self.queue.put(completion_msg)
+        self.queue.put(completion_msg) #puts completion message in a queue
 
     def pause(self):
         self.paused = True

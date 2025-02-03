@@ -3,7 +3,7 @@ from study_mode import StudyModeController
 from openai import OpenAI
 
 def main():
-    #init system components
+    #init system components 
     scheduler = ScheduleManager()
     study_controller = StudyModeController(scheduler.client)
 

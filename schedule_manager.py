@@ -27,6 +27,7 @@ class ScheduleManager:
         Tasks: {self.tasks}
         Constraints: {self.constraints}
         """
+        
 
         response = self.client.chat.completions.create(
             model="deepseek-chat",
@@ -39,4 +40,3 @@ class ScheduleManager:
 
         self.generated_schedule = response.choices[0].message.content
         return self.generated_schedule
-        
