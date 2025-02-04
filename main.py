@@ -1,6 +1,8 @@
 from schedule_manager import ScheduleManager
 from study_mode import StudyModeController
 from openai import OpenAI
+from session_manager import SessionManager
+from summarizer import Summarizer
 
 def main():
     #init system components 
@@ -19,6 +21,18 @@ def main():
     #start study mode if requested 
     if input("\nStart study mode? (yes/no): ").lower() == 'yes':
         study_controller.start_study_mode()
+
+
+    #Initialize with session management
+    study_controller = StudyModeController(scheduler.client, user_id= "user123")
+
+    #during operation
+    study_controller.start_study_mode()
+
+    #when session ends
+    summary = study_controller.summarizer.summarize_conversation(study_controller.current_history)
+    study_controller.session_manager.update_session_summary(summary)
+    study_controller.session_manager.save_sessions
 
 if __name__ == "__main__":
     main()
