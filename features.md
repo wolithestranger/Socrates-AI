@@ -70,6 +70,9 @@
     #4.1 Image submission will  important as well. 
 
 # 6.0 Give Socrates Access to the date and time. So he has some perception of time. Shouldn't be too hard.  
+    Later on, include time in the summaries for better recollection.
+    deadline management for schedule
+    Pomodoro Statistics tracking
 
 
 # Potential Features

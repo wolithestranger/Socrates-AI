@@ -40,16 +40,21 @@ class PomodoroThread(threading.Thread):
         self.queue.put(completion_msg) #puts completion message in a queue
 
     def pause(self):
-        self.paused = True
-        self.pause_cond.notify_all()
+        with self.pause_cond: #Acquire the lock
+            self.paused = True
+            self.pause_cond.notify_all()
     
     def resume(self):
-        self.paused = False
-        self.pause_cond.notify_all()
+        with self.pause_cond: #Acquire the lock
+            self.paused = False
+            self.pause_cond.notify_all()
 
     def stop(self):
-        self.paused =  True
-        self.resume()
+        with self.pause_cond: #Acquire the lock
+            self.stopped = True
+            self.paused =  False #ensure thrwead exits wait state. CLEAR PAUSED FLAG WEH STOPPING TO PREVENT DEADLOCKS
+            self.pause_cond.notify_all()
+        time.sleep(0.1) #Allow thread to exit gracefully by ADDING SMALL DELAY AFTER STOPPING. CLEAN THREAD TERMINATION.
 
 class StudyModeController:
     def __init__(self, ai_client, user_id= "default_user"):
@@ -69,7 +74,7 @@ class StudyModeController:
         self._handle_commands()
     
     def _handle_commands(self):
-        print("Study Mode Commands: pause, resume, stop, help")
+        print("Study Mode Commands: pause, resume, stop, save, help")
         while self.thread.is_alive():
             try: 
                 while not self.queue.empty():
