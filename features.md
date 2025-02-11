@@ -74,6 +74,13 @@
     deadline management for schedule
     Pomodoro Statistics tracking
 
+    TimeZone Feature Done
+    Benefits:
+    Global usability (users in different timezones)
+    Accurate deadline tracking across regions
+    Consistent time references in summaries
+
+# 7.0 If theres a way to cache important information and give the LLM access to it at all times. Info that will be used often.  Sort of like summarization right?
 
 # Potential Features
     *Encryption. Would it be wise to make the encryptions end to end? Would i want to have access to the users requests? It might be a good idea and they can use it to search hpotentially harmful things. At the same time the user has a right to their full privacy. Perhaps some holds on the degrees of freedom the AI is allowed to give the user access to, e.g no harmful content. This goes outside the bounds of encryption but is still useful to think about.  

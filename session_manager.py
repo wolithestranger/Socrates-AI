@@ -1,6 +1,7 @@
 import json
 import os 
 from datetime import datetime
+from time_service import TimeService
 
 class SessionManager:
     def __init__(self, user_id = "default_user"):
@@ -8,6 +9,18 @@ class SessionManager:
         self.sessions = {} #dict to store sessions
         self.current_session_id = None
         self.load_sessions()
+        self.time_service = None # Init time service reference
+    
+    def set_time_service(self, time_service):
+        """Set the time service for session management."""
+        self.time_service = time_service
+    
+    def update_timezone(self, new_timezone):
+        """Update timezone for the current session."""
+        if self.current_session_id and self.time_service:
+            self.sessions[self.current_session_id]["timezone"] = new_timezone
+            self.save_sessions
+
     def _get_session_file(self):
         return f"sessions_{self.user_id}.json" #return session id
     
@@ -21,9 +34,14 @@ class SessionManager:
             json.dump(self.sessions, f, indent = 2)
     
     def start_new_session(self):
-        self.current_session_id =  datetime.now() .isoformat()
+        #self.current_session_id =  datetime.now() .isoformat()
+        """Start a new session with timestamp and timezone."""
+        if not self.time_service:
+            raise ValueError("Time service not set")
+        self.current_session_id= self.time_service.get_current_time('%Y%m%d-%H%M%S')
         self.sessions[self.current_session_id] = {
-            "start_time" : self.current_session_id,
+            "start_time" : self.time_service.get_current_time(),
+            "timezone" : str(self.time_service.timezone),
             "summary" : "",
             "messages" : []
         }

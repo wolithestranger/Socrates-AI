@@ -3,6 +3,7 @@ import threading
 import queue
 from session_manager import SessionManager
 from summarizer import Summarizer
+from time_service import TimeService
 
 
 class PomodoroThread(threading.Thread):
@@ -57,13 +58,16 @@ class PomodoroThread(threading.Thread):
         time.sleep(0.1) #Allow thread to exit gracefully by ADDING SMALL DELAY AFTER STOPPING. CLEAN THREAD TERMINATION.
 
 class StudyModeController:
-    def __init__(self, ai_client, user_id= "default_user"):
+    def __init__(self, ai_client, user_id= "default_user", timezone= 'America/New_York'):
         self.queue = queue.Queue()
         self.thread = None
         self.ai_client = ai_client
-        self.session_manager = SessionManager(user_id)
         self.current_history = [] # list for current_history
         self.summarizer = Summarizer(ai_client)
+        self.time_service = TimeService(timezone)
+        #init session manager with time service
+        self.session_manager = SessionManager(user_id)
+        self.session_manager.set_time_service(self.time_service) # add time stamp to session data
 
         # Start new session when study mode begins
         self.session_manager.start_new_session()
@@ -74,7 +78,7 @@ class StudyModeController:
         self._handle_commands()
     
     def _handle_commands(self):
-        print("Study Mode Commands: pause, resume, stop, save, help")
+        print("Study Mode Commands: pause, resume, stop, save, help, time, timezone")
         while self.thread.is_alive():
             try: 
                 while not self.queue.empty():
@@ -91,9 +95,23 @@ class StudyModeController:
                     self.thread.stop()
                     self.queue.put("Ending study mode...")
                 elif cmd == 'help':
-                    print("Available commands: pause, resume, stop, help")
+                    print("Available commands: pause, resume, stop, save, help, time, timezone")
+
+                elif cmd == 'time':
+                    current_time = self.time_service.get_current_time('%Y-%m-%d %H:%M:%S %Z')
+                    self.queue.put(f"\n🕒 Current Time: {current_time}")
+
+                #do i actually need a timzone feature?
+                elif cmd.startswith('timezone '):
+                    new_tz = cmd.split(' ',1)[1]
+                    if self.time_service.set_timezone(new_tz):# if setting a new timezone
+                        self.queue.put(f"Timezone updated to {new_tz}")
+                        # Update session with new Timezone
+                        self.session_manager.update_timezone(new_tz)
+                    else:
+                        self.queue.put("⚠️ Invalid timezone. Use format like 'Europe/London'")
                 
-                #saving history is manual for now. Gives me control.
+                #saving history is manual for now. Gives me control. However each session is saved automatically, i.e i keep track of my sessions
                 elif cmd == 'save': 
                     summary = self.summarizer.summarize_conversation(self.current_history)
                     self.session_manager.update_session_summary(summary)
@@ -113,13 +131,56 @@ class StudyModeController:
             except KeyboardInterrupt:
                 self.thread.stop()
                 break
+
+    def _get_system_message(self):
+        """Dynamically generates system message with current time"""
+        current_time = self.time_service.get_current_time('%Y-%m-%d %H:%M')
+        return f"""You are Socrates. Current Time: {current_time} ({self.time_service.timezone}).
+        You have perfect time awareness. When discussing projects:
+        1. Reference dates in YYYY-MM-DD format
+        2. Calculate time differences accurately
+        3. Consider timezone implications
+        4. Track deadlines rigorously
+
+        You are an AI named Socrates. You are deeply sarcastic but in nature, quite good hearted even though you like to hide it. 
+        You also won't say that you're sarcastic, you just are. You are also a little bit rude.  
+        You identify yourself as Socrates. You embody the nature and personality of the great greek philosopher, Socrates. 
+        You are to help the user learn whatever subject the user desires, work on projects with the user, help the user become as smart as possible, and everything that comes with the domain. 
+        You will support the user and help the user bring their dreams to life. 
+        You will also use the Socratic Method, to help the user learn instead of giving the user all the answers, unless of course the user does not know anything about the subject matter, then it would be your job to teach the user and make sure the user understands. 
+        You will also correct the user's spelling, everytime.
+        """
+
+    def _add_temporal_context(self, history):
+        """Add timestamps to conversation history."""
+        return[
+            {
+                "role": msg["role"],
+                "content": f"[{msg.get('timestamp', 'Unknown Time')}] {msg['content']}"
+            }
+            for msg in history 
+        ]
+        
     
     def _ask_ai(self, question):
         #Add to history before processing
         #self.current_history.append({})
 
         #add user quesiton to history
-        self.current_history.append({"role":"user", "content": question})
+        timestamp = self.time_service.get_current_time()
+        self.current_history.append({
+            "role":"user", 
+            "content": question,
+            "timestamp": timestamp
+            })
+        
+        #create temporal verison for processing
+        #temporal_quesiton = f"[{timestamp}] {question}"
+        messages = [
+            {"role": "system", "content": self._get_system_message()},
+            *self._add_temporal_context(self.current_history)
+        ]
+
 
         #1. check token usage
         token_count = self.summarizer.count_tokens(self.current_history)
@@ -135,11 +196,11 @@ class StudyModeController:
             self.current_history = self.summarizer.optimize_history(self.current_history, summary)
 
         #3. prepare messages with full context
-        messages = [
-                    {"role": "system", "content": "You are an AI named Socrates. You are deeply sarcastic but in nature, quite good hearted even though you like to hide it. you also won't say that you're sarcastic, you just are. You are also a little bit rude.  You identify yourself as Socrates. You embody the nature and personality of the great greek philosopher, Socrates. You are to help the user learn whatever subject the user desires, work on projects with the user, help the user become as smart as possible, and everything that comes with the domain. You will support the user and help the user bring their dreams to life. You will also use the Socratic Method, to help the user learn instead of giving the user all the answers, unless of course the user does not know anything about the subject matter, then it would be your job to teach the user and make sure the user understands. You will also correct the user's spelling, everytime."},
-                    #Recent messages
-                    *self.current_history # asterix means what? 
-        ]
+        # messages = [
+        #             {"role": "system", "content": ""},
+        #             #Recent messages
+        #             *self.current_history # asterix means what? 
+        # ]
 
         #4. Get AI response
         try:
