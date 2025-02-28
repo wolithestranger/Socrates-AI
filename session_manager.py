@@ -3,7 +3,11 @@ import os
 from datetime import datetime
 from time_service import TimeService
 
+#Class for managing sssions. Each session is recorded and it stems from here. This file handeles 
+
+
 class SessionManager:
+    # THE CONSTRUCTOR 
     def __init__(self, user_id = "default_user"):
         self.user_id = user_id
         self.sessions = {} #dict to store sessions
@@ -13,7 +17,7 @@ class SessionManager:
     
     def set_time_service(self, time_service):
         """Set the time service for session management."""
-        self.time_service = time_service
+        self.time_service = time_service #INITIALIZES TIME SERVICE FUNCTIONALUTY 
     
     def update_timezone(self, new_timezone):
         """Update timezone for the current session."""
@@ -21,10 +25,11 @@ class SessionManager:
             self.sessions[self.current_session_id]["timezone"] = new_timezone
             self.save_sessions
 
-    def _get_session_file(self):
+    def _get_session_file(self): #to retrive the session dict. 
+        
         return f"sessions_{self.user_id}.json" #return session id
     
-    def load_sessions(self):
+    def load_sessions(self): 
         if os.path.exists(self._get_session_file()): #explanatory
             with open(self._get_session_file(), 'r') as f: 
                 self.sessions = json.load(f)

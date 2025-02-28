@@ -8,10 +8,19 @@ class Summarizer:
         self.token_limit =  4096 #Total tokens model has access to
         self.summary_buffer = 500 #Tokens reserved for AI response
     
-    def count_tokens(self, messages):
+    def count_tokens(self, history):
+        """Count the total tokens in the conversation history."""
         tokens = 0
-        for msg in messages:
-            tokens += len(self.encoder.encode(msg["content"])) + 4 #Add message overhead
+        for msg in history:
+            # Safely retrieve content, defaulting to an empty string
+            content = msg.get("content","")
+            # Ensure content is a string 
+            if isinstance(content, str):
+                tokens += len(self.encoder.encode(content)) + 4 #Add message overhead
+            else:
+                # Issue a warning for non-string content
+                print(f"Warning: Non-string content found in message. Type: {type(content)}")
+                tokens += 4  # Add minimal overhead for invalid content
 
         return tokens
 

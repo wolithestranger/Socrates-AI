@@ -4,6 +4,10 @@ import queue
 from session_manager import SessionManager
 from summarizer import Summarizer
 from time_service import TimeService
+from file_manager import FileManager
+import pygments
+from pygments.lexers import PythonLexer
+from pygments.formatters import TerminalFormatter
 
 
 class PomodoroThread(threading.Thread):
@@ -65,10 +69,11 @@ class StudyModeController:
         self.current_history = [] # list for current_history
         self.summarizer = Summarizer(ai_client)
         self.time_service = TimeService(timezone)
+        self.file_manager = FileManager()
         #init session manager with time service
         self.session_manager = SessionManager(user_id)
         self.session_manager.set_time_service(self.time_service) # add time stamp to session data
-
+        
         # Start new session when study mode begins
         self.session_manager.start_new_session()
 
@@ -78,14 +83,14 @@ class StudyModeController:
         self._handle_commands()
     
     def _handle_commands(self):
-        print("Study Mode Commands: pause, resume, stop, save, help, time, timezone")
+        print("Study Mode Commands: pause, resume, stop, save, help, time, timezone, read, code")
         while self.thread.is_alive():
             try: 
                 while not self.queue.empty():
                     print(self.queue.get_nowait())
                 
-                cmd = input("Command: ").lower()
-                if cmd == 'pause':
+                cmd = input("Command: ").lower().split()
+                if cmd[0] == 'pause':
                     self.thread.pause()
                     self.queue.put("Timer paused")
                 elif cmd == 'resume':
@@ -95,27 +100,36 @@ class StudyModeController:
                     self.thread.stop()
                     self.queue.put("Ending study mode...")
                 elif cmd == 'help':
-                    print("Available commands: pause, resume, stop, save, help, time, timezone")
+                    print("Available commands: pause, resume, stop, save, help, time, timezone, read, code")
 
                 elif cmd == 'time':
                     current_time = self.time_service.get_current_time('%Y-%m-%d %H:%M:%S %Z')
                     self.queue.put(f"\n🕒 Current Time: {current_time}")
 
                 #do i actually need a timzone feature?
-                elif cmd.startswith('timezone '):
-                    new_tz = cmd.split(' ',1)[1]
-                    if self.time_service.set_timezone(new_tz):# if setting a new timezone
-                        self.queue.put(f"Timezone updated to {new_tz}")
-                        # Update session with new Timezone
-                        self.session_manager.update_timezone(new_tz)
+                elif cmd[0]=='timezone':
+                    if len(cmd) > 1:
+
+                        new_tz = cmd[1]
+                        if self.time_service.set_timezone(new_tz):# if setting a new timezone
+                            self.queue.put(f"Timezone updated to {new_tz}")
+                            # Update session with new Timezone
+                            self.session_manager.update_timezone(new_tz)
+                        else:
+                            self.queue.put("⚠️ Invalid timezone. Use format like 'Europe/London'")
                     else:
-                        self.queue.put("⚠️ Invalid timezone. Use format like 'Europe/London'")
+                        self.queue.put("Usage: timezone <timezone>")
                 
                 #saving history is manual for now. Gives me control. However each session is saved automatically, i.e i keep track of my sessions
-                elif cmd == 'save': 
+                elif cmd[0] == 'save': 
                     summary = self.summarizer.summarize_conversation(self.current_history)
                     self.session_manager.update_session_summary(summary)
                     self.queue.put("Session saved with summary!")
+                #for read and write
+                elif cmd[0] == 'read':
+                    self._read_file(cmd[1] if len(cmd)> 1 else None) #calls _read_file functiomn
+                elif cmd[0] == 'code':
+                    self._handle_code_commands(cmd[1:]) #calls _handle_code_command functiomn
 
                 else: #handles questions posed to the ai.
                     response = self._ask_ai(cmd)
@@ -131,6 +145,42 @@ class StudyModeController:
             except KeyboardInterrupt:
                 self.thread.stop()
                 break
+    
+
+    def _read_file(self, filename):
+        content = self.file_manager.read_file(filename)
+        if content:
+            # Print with syntax highlighting
+            #print(pygments.highlight(content, PythonLexer(), TerminalFormatter()))
+            # Construct the prompt for Socrates
+            prompt = f"Review the parts of the file and discuss, especially if it has to do with what is being discussed:\n\n```python\n{content}\n```"
+            response = self._ask_ai(prompt)
+            print(f"\nSocrates' Analysis:\n{response}")
+        else:
+            print(f"Unable to read file: {filename}")
+
+    def _handle_code_commands(self,args):
+        if not args:
+            print("Usage: code <filename> [start_line] [end_line]")
+            return
+        filename =  args[0]
+        line_start = None
+        line_end  = None
+
+        if len(args) > 1:
+            line_start = int(args[1])
+        if len(args) > 2:
+            line_end = int(args[2])
+        
+        code_context = self.file_manager.get_code_context(filename, line_start, line_end)
+        if code_context is None:
+            print(f"Unable to retrieve code context for {filename}")
+            return
+
+        self.queue.put(f"\n📄 Reviewing {filename}")
+        self._ask_ai(f"Review the following code:\n\n{code_context}\n\n1. What improvements would you suggest?")
+            
+                  
 
     def _get_system_message(self):
         """Dynamically generates system message with current time"""
@@ -206,8 +256,14 @@ class StudyModeController:
         try:
             response =  self.ai_client.chat.completions.create(
                 model = "deepseek-chat",
-                messages =  messages # why can we do this?
+                messages =  messages, # why can we do this?
+                #temperature = 0.3, # lower temps are faster
+                #stream = True
+                
             )
+
+
+
             ai_response = response.choices[0].message.content
 
             #5. Store AI response in history

@@ -32,7 +32,7 @@ def main():
     #when session ends
     summary = study_controller.summarizer.summarize_conversation(study_controller.current_history)
     study_controller.session_manager.update_session_summary(summary)
-    study_controller.session_manager.save_sessions
+    study_controller.session_manager.save_sessions()
 
 if __name__ == "__main__":
     main()
